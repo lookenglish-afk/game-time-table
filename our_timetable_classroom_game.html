@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OUR TIMETABLE - LOOK ENGLISH Classroom Game</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts for playful, bold classroom typography -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@700;800;900&display=swap" rel="stylesheet">
+    <!-- Canvas Confetti for Victory Celebration -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        :root {
+            --board-green: #225c4b;
+            --board-dark: #194638;
+            --board-border: #d97706;
+        }
+        body {
+            font-family: 'Nunito', sans-serif;
+            background-color: #112a22;
+            user-select: none;
+            overflow-x: hidden;
+        }
+        .font-display {
+            font-family: 'Fredoka', sans-serif;
+        }
+        /* Chalkboard texture & border effect */
+        .chalkboard {
+            background: radial-gradient(circle at center, #2a6f5b 0%, #1d4d3f 75%, #163b30 100%);
+            box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.45), 0 12px 35px rgba(0,0,0,0.6);
+            border: 10px solid #ea580c;
+            border-radius: 24px;
+            position: relative;
+        }
+        .chalkboard::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 14px;
+            border: 3px solid rgba(255, 255, 255, 0.12);
+            pointer-events: none;
+        }
+
+        /* Animations */
+        @keyframes pulse-ring {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.04); }
+        }
+        .active-player-blue {
+            box-shadow: 0 0 0 5px #60a5fa, 0 10px 25px rgba(59, 130, 246, 0.5);
+            animation: pulse-ring 2s infinite ease-in-out;
+        }
+        .active-player-red {
+            box-shadow: 0 0 0 5px #f87171, 0 10px 25px rgba(239, 68, 68, 0.5);
+            animation: pulse-ring 2s infinite ease-in-out;
+        }
+
+        @keyframes pop-in {
+            0% { transform: scale(0.7); opacity: 0; }
+            70% { transform: scale(1.08); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-pop {
+            animation: pop-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-6px) rotate(-2deg); }
+            75% { transform: translateX(6px) rotate(2deg); }
+        }
+        .animate-shake {
+            animation: shake 0.35s ease-in-out;
+        }
+
+        /* Tile hover & selection states */
+        .timetable-cell {
+            transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .timetable-cell:hover {
+            transform: translateY(-3px) scale(1.03);
+            filter: brightness(1.03);
+        }
+        .timetable-cell:active {
+            transform: scale(0.95);
+        }
+        .cell-correct {
+            box-shadow: 0 0 0 4px #10b981, 0 0 20px rgba(16, 185, 129, 0.8) !important;
+            transform: scale(1.05);
+            z-index: 10;
+        }
+        .cell-wrong {
+            box-shadow: 0 0 0 4px #ef4444 !important;
+            animation: shake 0.35s ease-in-out;
+        }
+
+        .day-pill {
+            transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+            cursor: pointer;
+        }
+        .day-pill:hover {
+            transform: translateY(-2px) scale(1.04);
+            filter: brightness(1.08);
+        }
+        .day-pill.selected-day {
+            box-shadow: 0 0 0 4px #fde047, 0 6px 15px rgba(0,0,0,0.3);
+            transform: translateY(-3px) scale(1.06);
+        }
+
+        /* 3D Classroom Button */
+        .btn-3d {
+            transition: all 0.15s ease;
+            box-shadow: 0 6px 0 rgba(0,0,0,0.28);
+        }
+        .btn-3d:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 0 rgba(0,0,0,0.28);
+        }
+        .btn-3d:active:not(:disabled) {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 rgba(0,0,0,0.28);
+        }
+        .btn-3d:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between p-2 sm:p-4 lg:p-6">
+
+    <!-- MAIN CHALKBOARD CONTAINER -->
+    <main class="chalkboard w-full max-w-7xl mx-auto flex-1 flex flex-col justify-between p-3 sm:p-5 lg:p-6">
+        
+        <!-- ================= TOP HEADER BAR ================= -->
+        <header class="grid grid-cols-12 items-center gap-2 sm:gap-4 mb-3 sm:mb-5">
+            
+            <!-- PLAYER 1 CARD -->
+            <div class="col-span-4 sm:col-span-3 flex justify-start">
+                <div id="p1-card" onclick="selectPlayer(1)" class="cursor-pointer bg-gradient-to-b from-blue-50 to-white rounded-2xl p-2 sm:px-5 sm:py-2.5 w-full max-w-[200px] border-2 border-blue-200 transition-all relative">
+                    <div id="p1-turn-badge" class="hidden absolute -top-3 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[10px] sm:text-xs font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow">
+                        Your Turn
+                    </div>
+                    <div class="text-center text-blue-800 font-black text-xs sm:text-sm tracking-wide uppercase">
+                        PLAYER 1
+                    </div>
+                    <div class="flex items-center justify-center gap-2 sm:gap-3 mt-0.5">
+                        <svg class="w-6 h-6 sm:w-8 sm:h-8 text-amber-400 drop-shadow" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                        </svg>
+                        <span id="p1-score" class="font-display text-3xl sm:text-5xl font-bold text-blue-600 leading-none">0</span>
+                    </div>
+                    <div class="flex justify-center gap-1 mt-1 opacity-75 hover:opacity-100" onclick="event.stopPropagation()">
+                        <button onclick="adjustScore(1, -1)" class="text-[11px] bg-blue-100 hover:bg-blue-200 text-blue-700 font-bold px-2 rounded" title="Minus 1 point">-1</button>
+                        <button onclick="adjustScore(1, 1)" class="text-[11px] bg-blue-100 hover:bg-blue-200 text-blue-700 font-bold px-2 rounded" title="Add 1 point">+1</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CENTER TITLE & TURN COUNTER -->
+            <div class="col-span-4 sm:col-span-6 flex flex-col items-center text-center">
+                <div class="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full border-2 border-amber-400 bg-amber-500/20 text-amber-300 text-[10px] sm:text-xs font-extrabold tracking-wider uppercase mb-1 shadow-sm">
+                    <span>⭐</span>
+                    <span>LOOK ENGLISH</span>
+                </div>
+
+                <div class="flex items-center justify-center gap-1.5 sm:gap-3">
+                    <span class="text-xl sm:text-3xl lg:text-4xl drop-shadow">🏫</span>
+                    <h1 class="font-display text-xl sm:text-4xl lg:text-5xl font-bold tracking-wide drop-shadow-[0_3px_3px_rgba(0,0,0,0.4)]">
+                        <span class="text-white">OUR </span>
+                        <span class="text-amber-400">TIMETABLE</span>
+                    </h1>
+                </div>
+
+                <div class="mt-1.5 bg-white/15 backdrop-blur-sm border border-white/25 text-white font-extrabold text-xs sm:text-base px-4 py-0.5 rounded-full shadow-inner">
+                    Turn <span id="turn-current" class="text-amber-300">1</span> / <span id="turn-max">10</span>
+                </div>
+            </div>
+
+            <!-- PLAYER 2 CARD -->
+            <div class="col-span-4 sm:col-span-3 flex justify-end">
+                <div id="p2-card" onclick="selectPlayer(2)" class="cursor-pointer bg-gradient-to-b from-red-50 to-white rounded-2xl p-2 sm:px-5 sm:py-2.5 w-full max-w-[200px] border-2 border-red-200 transition-all relative">
+                    <div id="p2-turn-badge" class="hidden absolute -top-3 left-1/2 -translate-x-1/2 bg-red-600 text-white text-[10px] sm:text-xs font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow">
+                        Your Turn
+                    </div>
+                    <div class="text-center text-red-800 font-black text-xs sm:text-sm tracking-wide uppercase">
+                        PLAYER 2
+                    </div>
+                    <div class="flex items-center justify-center gap-2 sm:gap-3 mt-0.5">
+                        <span id="p2-score" class="font-display text-3xl sm:text-5xl font-bold text-red-600 leading-none">0</span>
+                        <svg class="w-6 h-6 sm:w-8 sm:h-8 text-amber-400 drop-shadow" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                        </svg>
+                    </div>
+                    <div class="flex justify-center gap-1 mt-1 opacity-75 hover:opacity-100" onclick="event.stopPropagation()">
+                        <button onclick="adjustScore(2, -1)" class="text-[11px] bg-red-100 hover:bg-red-200 text-red-700 font-bold px-2 rounded" title="Minus 1 point">-1</button>
+                        <button onclick="adjustScore(2, 1)" class="text-[11px] bg-red-100 hover:bg-red-200 text-red-700 font-bold px-2 rounded" title="Add 1 point">+1</button>
+                    </div>
+                </div>
+            </div>
+
+        </header>
+
+        <!-- ================= MAIN 2-COLUMN GAME AREA ================= -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-center flex-1 my-auto">
+            
+            <!-- LEFT COLUMN: THE TIMETABLE (7 cols on large screens) -->
+            <div class="lg:col-span-7 bg-white/95 rounded-3xl p-2.5 sm:p-4 shadow-2xl border-4 border-white/80">
+                
+                <!-- 5 DAYS OF THE WEEK HEADER ROW -->
+                <div class="grid grid-cols-5 gap-1.5 sm:gap-2.5 mb-2 sm:mb-3" id="days-header-row">
+                    <!-- Populated dynamically with Monday..Friday pills -->
+                </div>
+
+                <!-- 5x4 TIMETABLE GRID -->
+                <div id="timetable-grid" class="grid grid-cols-5 gap-1.5 sm:gap-2.5">
+                    <!-- 20 cells populated by JS (4 rows x 5 columns) -->
+                </div>
+
+                <!-- Helpful instruction bar below timetable -->
+                <div class="mt-2.5 pt-2 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm text-slate-600 font-bold px-1">
+                    <span class="flex items-center gap-1.5">
+                        <span>👆</span>
+                        <span>Tap the matching <b>Day buttons</b> or <b>Subject tiles</b> on the timetable!</span>
+                    </span>
+                    <span id="found-counter" class="bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full font-extrabold">
+                        Found: 0 / 0
+                    </span>
+                </div>
+            </div>
+
+            <!-- RIGHT COLUMN: SPINNER, TIMER & QUESTION PROMPT (5 cols on large screens) -->
+            <div class="lg:col-span-5 flex flex-col items-center justify-between h-full relative py-1">
+                
+                <!-- Top Row in Right Column: Mode status & Circular Countdown Timer -->
+                <div class="w-full flex items-center justify-between px-2 mb-2">
+                    <div id="turn-indicator-banner" class="bg-blue-500 text-white font-black text-xs sm:text-sm px-3.5 py-1.5 rounded-full shadow flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-white animate-ping"></span>
+                        <span id="active-player-label">PLAYER 1'S TURN</span>
+                    </div>
+
+                    <!-- Circular Countdown Timer -->
+                    <div class="relative w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center bg-black/25 rounded-full p-1 shadow-lg">
+                        <svg class="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                            <circle cx="50" cy="50" r="42" stroke="rgba(255,255,255,0.18)" stroke-width="10" fill="none"/>
+                            <circle id="timer-ring" cx="50" cy="50" r="42" stroke="#22c55e" stroke-width="10" fill="none"
+                                stroke-dasharray="264" stroke-dashoffset="0" stroke-linecap="round"
+                                class="transition-all duration-300"/>
+                        </svg>
+                        <span id="timer-text" class="absolute font-display text-2xl sm:text-3xl font-bold text-white drop-shadow">
+                            15
+                        </span>
+                    </div>
+                </div>
+
+                <!-- CENTER SPINNER / TARGET SUBJECT BOX -->
+                <div class="my-2 flex flex-col items-center w-full">
+                    <div id="spinner-box" onclick="spinSubject()" class="cursor-pointer bg-white rounded-3xl p-4 sm:p-5 w-60 h-44 sm:w-72 sm:h-52 shadow-[0_12px_30px_rgba(0,0,0,0.35)] border-4 border-white flex flex-col items-center justify-center relative group transition-transform hover:scale-105">
+                        
+                        <!-- Inner Pastel Subject Card -->
+                        <div id="target-subject-card" class="w-32 h-28 sm:w-36 sm:h-32 rounded-2xl flex flex-col items-center justify-center shadow-inner transition-colors duration-200" style="background-color: #f4a2b8;">
+                            <div id="target-subject-icon" class="w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center">
+                                <!-- Subject SVG rendered here -->
+                            </div>
+                        </div>
+
+                        <!-- Subject English Name Badge -->
+                        <div id="target-subject-name" class="mt-2 font-display text-lg sm:text-xl font-bold text-slate-800 tracking-wide">
+                            Vietnamese
+                        </div>
+                    </div>
+                </div>
+
+                <!-- QUESTION TEXT: "When do you have [icon] ?" -->
+                <div class="text-center my-2 px-2">
+                    <div class="inline-flex flex-wrap items-center justify-center gap-2 text-white font-display text-2xl sm:text-3xl lg:text-4xl font-bold drop-shadow-[0_3px_4px_rgba(0,0,0,0.5)]">
+                        <span>When do you have</span>
+                        <span id="inline-question-icon" class="inline-flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-xl shadow-md p-1.5 border-2 border-white" style="background-color: #f4a2b8;">
+                            <!-- Mini icon -->
+                        </span>
+                        <span>?</span>
+                    </div>
+                </div>
+
+                <!-- ORAL SENTENCE PATTERN HINT BOX -->
+                <div class="w-full max-w-md bg-black/25 border border-white/20 rounded-2xl p-2.5 sm:p-3 text-center">
+                    <div class="text-[11px] sm:text-xs uppercase tracking-wider text-amber-300 font-extrabold mb-0.5">
+                        💬 Teacher & Student Practice
+                    </div>
+                    <div id="sentence-hint" class="text-white font-bold text-sm sm:text-base">
+                        "I have <span class="text-amber-300 underline">Vietnamese</span> on <span class="text-emerald-300">...</span>"
+                    </div>
+                </div>
+
+                <!-- TEACHER / GAME CONTROL BUTTONS -->
+                <div class="w-full flex flex-wrap items-center justify-center gap-2 sm:gap-3 mt-3">
+                    <button id="btn-spin" onclick="spinSubject()" class="btn-3d bg-amber-400 hover:bg-amber-300 text-slate-900 font-display font-bold text-sm sm:text-base px-4 py-2.5 rounded-xl flex items-center gap-1.5">
+                        <span>🎰</span>
+                        <span>SPIN SUBJECT</span>
+                    </button>
+
+                    <button onclick="awardCurrentPlayerAndNext()" class="btn-3d bg-emerald-500 hover:bg-emerald-400 text-white font-display font-bold text-sm sm:text-base px-4 py-2.5 rounded-xl flex items-center gap-1.5" title="Award +1 point for spoken answer & next turn">
+                        <span>✅</span>
+                        <span>Correct (+1)</span>
+                    </button>
+
+                    <button onclick="nextTurn(false)" class="btn-3d bg-white/20 hover:bg-white/30 text-white font-display font-bold text-sm sm:text-base px-3.5 py-2.5 rounded-xl flex items-center gap-1" title="Skip to next player">
+                        <span>⏭️</span>
+                        <span>Skip</span>
+                    </button>
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- ================= BOTTOM UTILITY BAR ================= -->
+        <footer class="mt-3 pt-2 border-t border-white/15 flex flex-wrap items-center justify-between gap-2 text-xs text-white/80">
+            <div class="flex flex-wrap items-center gap-2">
+                <button onclick="resetOriginalTimetable()" class="bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1">
+                    <span>📌</span> Original Photo Layout
+                </button>
+                <button onclick="shuffleTimetable()" class="bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1">
+                    <span>🔀</span> Shuffle Timetable
+                </button>
+                <button onclick="toggleSound()" id="btn-sound" class="bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1">
+                    <span>🔔</span> SFX: ON
+                </button>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <button onclick="resetGame()" class="bg-rose-500/80 hover:bg-rose-500 text-white px-3 py-1.5 rounded-lg font-bold transition">
+                    🔄 New Game
+                </button>
+            </div>
+        </footer>
+
+    </main>
+
+    <!-- ================= VICTORY MODAL ================= -->
+    <div id="victory-modal" class="fixed inset-0 bg-black/75 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 text-center shadow-2xl border-4 border-amber-400 animate-pop">
+            <div class="text-6xl mb-3">🏆</div>
+            <h2 id="winner-title" class="font-display text-3xl sm:text-4xl font-bold text-slate-800 mb-2">
+                PLAYER 1 WINS!
+            </h2>
+            <p id="winner-subtitle" class="text-slate-600 font-bold mb-6">
+                Awesome job practicing your English timetable!
+            </p>
+            <div class="flex justify-center gap-6 mb-6 bg-slate-100 p-4 rounded-2xl">
+                <div>
+                    <div class="text-xs font-black text-blue-600 uppercase">Player 1</div>
+                    <div id="final-p1-score" class="font-display text-4xl font-bold text-blue-700">0</div>
+                </div>
+                <div class="border-r border-slate-300"></div>
+                <div>
+                    <div class="text-xs font-black text-red-600 uppercase">Player 2</div>
+                    <div id="final-p2-score" class="font-display text-4xl font-bold text-red-700">0</div>
+                </div>
+            </div>
+            <button onclick="closeVictoryAndRestart()" class="btn-3d w-full bg-amber-400 hover:bg-amber-300 text-slate-900 font-display font-bold text-xl py-3 rounded-2xl">
+                🎮 PLAY AGAIN
+            </button>
+        </div>
+    </div>
+
+    <!-- ================= GAME LOGIC & ASSETS ================= -->
+    <script>
+        // 1. DAYS OF THE WEEK CONFIGURATION (Matching the photo colors)
+        const DAYS = [
+            { id: 0, name: 'Monday',    color: '#ef4444' }, // Red
+            { id: 1, name: 'Tuesday',   color: '#f97316' }, // Orange
+            { id: 2, name: 'Wednesday', color: '#f59e0b' }, // Amber/Yellow
+            { id: 3, name: 'Thursday',  color: '#10b981' }, // Emerald Green
+            { id: 4, name: 'Friday',    color: '#3b82f6' }  // Blue
+        ];
+
+        // 2. SUBJECTS CONFIGURATION (Custom crisp SVGs + exact pastel backgrounds from photo)
+        const SUBJECTS = {
+            it: {
+                id: 'it',
+                name: 'IT / Computers',
+                shortName: 'IT',
+                bg: '#d8b4fe', // Pastel purple
+                svg: `<svg viewBox="0 0 64 64" class="w-full h-full drop-shadow-sm">
+                        <rect x="10" y="12" width="44" height="30" rx="3" fill="#334155" stroke="#1e293b" stroke-width="2"/>
+                        <rect x="14" y="16" width="36" height="22" fill="#38bdf8"/>
+                        <path d="M4 44 L60 44 L54 52 L10 52 Z" fill="#94a3b8" stroke="#475569" stroke-width="2"/>
+                        <rect x="26" y="46" width="12" height="3" rx="1" fill="#475569"/>
+                      </svg>`
+            },
+            geography: {
+                id: 'geography',
+                name: 'Geography',
+                shortName: 'Geography',
+                bg: '#fed7aa', // Pastel orange/peach
+                svg: `<svg viewBox="0 0 64 64" class="w-full h-full drop-shadow-sm">
+                        <circle cx="32" cy="32" r="22" fill="#2563eb"/>
+                        <path d="M22 15 C28 18, 35 14, 40 20 C44 26, 38 34, 45 40 C40 48, 28 46, 22 40 C16 34, 18 22, 22 15 Z" fill="#22c55e"/>
+                        <path d="M14 28 C18 26, 22 30, 20 36 C16 38, 12 34, 14 28 Z" fill="#22c55e"/>
+                        <circle cx="32" cy="32" r="22" fill="none" stroke="#1d4ed8" stroke-width="2"/>
+                      </svg>`
+            },
+            music: {
+                id: 'music',
+                name: 'Music',
+                shortName: 'Music',
+                bg: '#e9d5ff', // Soft lilac
+                svg: `<svg viewBox="0 0 64 64" class="w-full h-full drop-shadow-sm">
+                        <path d="M24 46 L24 16 L50 12 L50 42" fill="none" stroke="#1e293b" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M24 24 L50 20" fill="none" stroke="#1e293b" stroke-width="5"/>
+                        <circle cx="18" cy="46" r="7" fill="#1e293b"/>
+                        <circle cx="44" cy="42" r="7" fill="#1e293b"/>
+                      </svg>`
+            },
+            english: {
+                id: 'english',
+                name: 'English',
+                shortName: 'English',
+                bg: '#bfdbfe', // Pastel blue
+                svg: `<svg viewBox="0 0 60 40" class="w-full h-full rounded shadow-sm overflow-hidden">
+                        <rect width="60" height="40" fill="#012169"/>
+                        <path d="M0,0 L60,40 M60,0 L0,40" stroke="#ffffff" stroke-width="7"/>
+                        <path d="M0,0 L60,40 M60,0 L0,40" stroke="#C8102E" stroke-width="3"/>
+                        <path d="M30,0 L30,40 M0,20 L60,20" stroke="#ffffff" stroke-width="11"/>
+                        <path d="M30,0 L30,40 M0,20 L60,20" stroke="#C8102E" stroke-width="6"/>
+                      </svg>`
+            },
+            art: {
+                id: 'art',
+                name: 'Art',
+                shortName: 'Art',
+                bg: '#fbcfe8', // Pastel pink
+                svg: `<svg viewBox="0 0 64 64" class="w-full h-full drop-shadow-sm">
+                        <path d="M32 10 C18 10, 8 20, 8 33 C8 46, 20 54, 34 54 C40 54, 44 50, 44 45 C44 42, 41 39, 41 36 C41 33, 44 31, 48 31 C53 31, 56 27, 56 22 C56 14, 45 10, 32 10 Z" fill="#f59e0b" stroke="#b45309" stroke-width="2"/>
+                        <circle cx="20" cy="24" r="4" fill="#ef4444"/>
+                        <circle cx="31" cy="19" r="4" fill="#3b82f6"/>
+                        <circle cx="42" cy="22" r="4" fill="#10b981"/>
+                        <circle cx="18" cy="36" r="4" fill="#a855f7"/>
+                        <circle cx="33" cy="44" r="4.5" fill="#1d4d3f"/>
+                      </svg>`
+            },
+            pe: {
+                id: 'pe',
+                name: 'P.E. (Sports)',
+                shortName: 'P.E.',
+                bg: '#bae6fd', // Light sky blue
+                svg: `<svg viewBox="0 0 64 64" class="w-full h-full drop-shadow-sm">
+                        <circle cx="32" cy="32" r="22" fill="#ffffff" stroke="#1e293b" stroke-width="2.5"/>
+                        <polygon points="32,20 41,27 37,38 27,38 23,27" fill="#1e293b"/>
+                        <path d="M32 20 L32 10 M41 27 L52 23 M37 38 L45 48 M27 38 L19 48 M23 27 L12 23" stroke="#1e293b" stroke-width="2.5"/>
+                      </svg>`
+            },
+            science: {
+                id: 'science',
+                name: 'Science',
+                shortName: 'Science',
+                bg: '#a7f3d0', // Pastel mint
+                svg: `<svg viewBox="0 0 64 64" class="w-full h-full drop-shadow-sm">
+                        <rect x="16" y="48" width="32" height="6" rx="2" fill="#334155"/>
+                        <path d="M36 48 C44 44, 46 30, 38 22" fill="none" stroke="#64748b" stroke-width="5" stroke-linecap="round"/>
+                        <rect x="26" y="12" width="8" height="18" rx="2" transform="rotate(-20 30 21)" fill="#0284c7" stroke="#0369a1" stroke-width="2"/>
+                        <rect x="20" y="38" width="18" height="3" fill="#475569"/>
+                      </svg>`
+            },
+            maths: {
+                id: 'maths',
+                name: 'Maths',
+                shortName: 'Maths',
+                bg: '#fde68a', // Pastel yellow
+                svg: `<svg viewBox="0 0 64 64" class="w-full h-full drop-shadow-sm">
+                        <rect x="10" y="10" width="44" height="44" rx="8" fill="#3b82f6" stroke="#1d4ed8" stroke-width="2"/>
+                        <text x="21" y="29" fill="white" font-family="Fredoka, sans-serif" font-weight="700" font-size="16">1</text>
+                        <text x="37" y="29" fill="white" font-family="Fredoka, sans-serif" font-weight="700" font-size="16">2</text>
+                        <text x="21" y="47" fill="white" font-family="Fredoka, sans-serif" font-weight="700" font-size="16">3</text>
+                        <text x="37" y="47" fill="white" font-family="Fredoka, sans-serif" font-weight="700" font-size="16">4</text>
+                        <line x1="32" y1="14" x2="32" y2="50" stroke="rgba(255,255,255,0.35)" stroke-width="2"/>
+                        <line x1="14" y1="32" x2="50" y2="32" stroke="rgba(255,255,255,0.35)" stroke-width="2"/>
+                      </svg>`
+            },
+            vietnamese: {
+                id: 'vietnamese',
+                name: 'Vietnamese',
+                shortName: 'Vietnamese',
+                bg: '#f4a2b8', // Pastel rose pink (matches screenshot)
+                svg: `<svg viewBox="0 0 60 40" class="w-full h-full rounded shadow-sm overflow-hidden">
+                        <rect width="60" height="40" fill="#da251d"/>
+                        <polygon points="30,8 33.5,18.5 44.5,18.5 35.5,25 39,35.5 30,29 21,35.5 24.5,25 15.5,18.5 26.5,18.5" fill="#ffff00"/>
+                      </svg>`
+            }
+        };
+
+        // 3. EXACT 4x5 TIMETABLE LAYOUT FROM THE SCREENSHOT
+        const PHOTO_TIMETABLE_GRID = [
+            ['it',         'geography', 'music',      'english',    'music'],      // Row 1
+            ['english',    'art',       'geography',  'pe',         'science'],    // Row 2
+            ['art',        'maths',     'vietnamese', 'vietnamese', 'vietnamese'], // Row 3
+            ['science',    'pe',        'geography',  'maths',      'english']     // Row 4
+        ];
+
+        // 4. GAME STATE
+        let currentGrid = JSON.parse(JSON.stringify(PHOTO_TIMETABLE_GRID));
+        let scores = { 1: 0, 2: 0 };
+        let currentPlayer = 1;
+        let currentTurn = 1;
+        const maxTurns = 10;
+
+        let targetSubjectKey = 'vietnamese';
+        let requiredDays = new Set();
+        let foundDays = new Set();
+        let isSpinning = false;
+        let soundEnabled = true;
+
+        // Timer state
+        const TURN_TIME = 15;
+        let timeLeft = TURN_TIME;
+        let timerInterval = null;
+
+        // Web Audio API Context for Classroom Sound Effects only (bíp quay số, ting ting đúng/sai - không có giọng đọc)
+        let audioCtx = null;
+        function initAudio() {
+            if (!audioCtx) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioContext();
+            }
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function playTone(freq, type = 'sine', duration = 0.12, volume = 0.15) {
+            if (!soundEnabled) return;
+            try {
+                initAudio();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                gain.gain.setValueAtTime(volume, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + duration);
+            } catch (e) {}
+        }
+
+        function playCorrectSound() {
+            playTone(523.25, 'triangle', 0.12, 0.2); // C5
+            setTimeout(() => playTone(659.25, 'triangle', 0.12, 0.2), 90); // E5
+            setTimeout(() => playTone(783.99, 'triangle', 0.25, 0.22), 180); // G5
+        }
+
+        function playRoundWinSound() {
+            playTone(523.25, 'sine', 0.1, 0.2);
+            setTimeout(() => playTone(659.25, 'sine', 0.1, 0.2), 80);
+            setTimeout(() => playTone(783.99, 'sine', 0.1, 0.2), 160);
+            setTimeout(() => playTone(1046.50, 'sine', 0.35, 0.25), 240);
+        }
+
+        function playWrongSound() {
+            playTone(220, 'sawtooth', 0.18, 0.15);
+            setTimeout(() => playTone(175, 'sawtooth', 0.25, 0.15), 120);
+        }
+
+        // 5. RENDER TIMETABLE & HEADERS
+        function renderDaysHeader() {
+            const headerRow = document.getElementById('days-header-row');
+            headerRow.innerHTML = '';
+            DAYS.forEach(day => {
+                const isSelected = foundDays.has(day.id);
+                const btn = document.createElement('button');
+                btn.className = `day-pill py-1.5 sm:py-2 px-1 rounded-full text-white font-display font-bold text-xs sm:text-base tracking-wide shadow-md text-center truncate ${isSelected ? 'selected-day' : ''}`;
+                btn.style.backgroundColor = day.color;
+                btn.innerHTML = isSelected ? `✓ ${day.name}` : day.name;
+                btn.onclick = () => handleDayOrCellChoice(day.id);
+                headerRow.appendChild(btn);
+            });
+        }
+
+        function renderTimetableGrid() {
+            const gridEl = document.getElementById('timetable-grid');
+            gridEl.innerHTML = '';
+
+            for (let row = 0; row < 4; row++) {
+                for (let col = 0; col < 5; col++) {
+                    const subjKey = currentGrid[row][col];
+                    const subj = SUBJECTS[subjKey];
+                    const isDayFound = foundDays.has(col) && subjKey === targetSubjectKey;
+
+                    const cell = document.createElement('div');
+                    cell.id = `cell-${row}-${col}`;
+                    cell.className = `timetable-cell cursor-pointer rounded-2xl p-2 sm:p-3 h-16 sm:h-24 flex flex-col items-center justify-center relative shadow-sm border-2 border-white/60 ${isDayFound ? 'cell-correct' : ''}`;
+                    cell.style.backgroundColor = subj.bg;
+
+                    cell.innerHTML = `
+                        <div class="w-9 h-9 sm:w-12 sm:h-12 flex items-center justify-center pointer-events-none">
+                            ${subj.svg}
+                        </div>
+                        ${isDayFound ? `<span class="absolute top-1 right-1 bg-emerald-500 text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center shadow">✓</span>` : ''}
+                    `;
+
+                    cell.onclick = () => handleCellClick(row, col, subjKey);
+                    gridEl.appendChild(cell);
+                }
+            }
+        }
+
+        // 6. TARGET SUBJECT & QUESTION LOGIC
+        function setTargetSubject(subjKey) {
+            targetSubjectKey = subjKey;
+            const subj = SUBJECTS[subjKey];
+
+            requiredDays.clear();
+            foundDays.clear();
+            for (let col = 0; col < 5; col++) {
+                for (let row = 0; row < 4; row++) {
+                    if (currentGrid[row][col] === subjKey) {
+                        requiredDays.add(col);
+                    }
+                }
+            }
+
+            const cardEl = document.getElementById('target-subject-card');
+            const iconEl = document.getElementById('target-subject-icon');
+            const nameEl = document.getElementById('target-subject-name');
+            const inlineIconEl = document.getElementById('inline-question-icon');
+
+            cardEl.style.backgroundColor = subj.bg;
+            iconEl.innerHTML = subj.svg;
+            nameEl.textContent = subj.name;
+
+            inlineIconEl.style.backgroundColor = subj.bg;
+            inlineIconEl.innerHTML = subj.svg;
+
+            updateSentenceHint();
+            updateFoundCounter();
+            renderDaysHeader();
+            renderTimetableGrid();
+        }
+
+        function updateSentenceHint() {
+            const subj = SUBJECTS[targetSubjectKey];
+            const hintEl = document.getElementById('sentence-hint');
+
+            if (foundDays.size === 0) {
+                hintEl.innerHTML = `"I have <span class="text-amber-300 underline">${subj.shortName}</span> on <span class="text-emerald-300">...</span>"`;
+            } else {
+                const dayNames = Array.from(foundDays).sort().map(d => DAYS[d].name);
+                const formattedDays = formatDayList(dayNames);
+                hintEl.innerHTML = `"I have <span class="text-amber-300 underline">${subj.shortName}</span> on <span class="text-emerald-300 font-black">${formattedDays}</span>."`;
+            }
+        }
+
+        function formatDayList(names) {
+            if (names.length === 0) return '...';
+            if (names.length === 1) return names[0];
+            if (names.length === 2) return `${names[0]} and ${names[1]}`;
+            return names.slice(0, -1).join(', ') + ', and ' + names[names.length - 1];
+        }
+
+        function updateFoundCounter() {
+            const counterEl = document.getElementById('found-counter');
+            counterEl.textContent = `Found: ${foundDays.size} / ${requiredDays.size} days`;
+        }
+
+        // 7. HANDLE INTERACTIVE STUDENT CLICKS
+        function handleCellClick(row, col, clickedSubjKey) {
+            if (isSpinning) return;
+
+            const cellEl = document.getElementById(`cell-${row}-${col}`);
+            if (clickedSubjKey === targetSubjectKey) {
+                handleDayOrCellChoice(col);
+            } else {
+                playWrongSound();
+                if (cellEl) {
+                    cellEl.classList.remove('cell-wrong');
+                    void cellEl.offsetWidth;
+                    cellEl.classList.add('cell-wrong');
+                }
+            }
+        }
+
+        function handleDayOrCellChoice(dayIndex) {
+            if (isSpinning) return;
+
+            if (requiredDays.has(dayIndex)) {
+                if (!foundDays.has(dayIndex)) {
+                    foundDays.add(dayIndex);
+                    playCorrectSound();
+                    renderDaysHeader();
+                    renderTimetableGrid();
+                    updateSentenceHint();
+                    updateFoundCounter();
+
+                    if (foundDays.size === requiredDays.size) {
+                        playRoundWinSound();
+                        setTimeout(() => {
+                            awardCurrentPlayerAndNext();
+                        }, 650);
+                    }
+                }
+            } else {
+                playWrongSound();
+                const headerButtons = document.getElementById('days-header-row').children;
+                if (headerButtons[dayIndex]) {
+                    headerButtons[dayIndex].classList.add('animate-shake');
+                    setTimeout(() => headerButtons[dayIndex].classList.remove('animate-shake'), 400);
+                }
+            }
+        }
+
+        // 8. SPIN ANIMATION
+        function spinSubject() {
+            if (isSpinning) return;
+            isSpinning = true;
+
+            const allKeys = Object.keys(SUBJECTS);
+            let ticks = 0;
+            const totalTicks = 14;
+            const spinBtn = document.getElementById('btn-spin');
+            spinBtn.disabled = true;
+
+            const spinInterval = setInterval(() => {
+                const randomKey = allKeys[Math.floor(Math.random() * allKeys.length)];
+                const subj = SUBJECTS[randomKey];
+
+                document.getElementById('target-subject-card').style.backgroundColor = subj.bg;
+                document.getElementById('target-subject-icon').innerHTML = subj.svg;
+                document.getElementById('target-subject-name').textContent = subj.name;
+                playTone(300 + ticks * 25, 'sine', 0.05, 0.1);
+
+                ticks++;
+                if (ticks >= totalTicks) {
+                    clearInterval(spinInterval);
+                    const otherKeys = allKeys.filter(k => k !== targetSubjectKey);
+                    const finalKey = otherKeys[Math.floor(Math.random() * otherKeys.length)];
+                    setTargetSubject(finalKey);
+                    isSpinning = false;
+                    spinBtn.disabled = false;
+                    resetTimer();
+                }
+            }, 65);
+        }
+
+        // 9. PLAYER TURNS & TIMER
+        function updatePlayerUI() {
+            document.getElementById('p1-score').textContent = scores[1];
+            document.getElementById('p2-score').textContent = scores[2];
+            document.getElementById('turn-current').textContent = currentTurn;
+            document.getElementById('turn-max').textContent = maxTurns;
+
+            const p1Card = document.getElementById('p1-card');
+            const p2Card = document.getElementById('p2-card');
+            const p1Badge = document.getElementById('p1-turn-badge');
+            const p2Badge = document.getElementById('p2-turn-badge');
+            const banner = document.getElementById('turn-indicator-banner');
+            const label = document.getElementById('active-player-label');
+
+            if (currentPlayer === 1) {
+                p1Card.classList.add('active-player-blue');
+                p2Card.classList.remove('active-player-red');
+                p1Badge.classList.remove('hidden');
+                p2Badge.classList.add('hidden');
+                banner.className = 'bg-blue-500 text-white font-black text-xs sm:text-sm px-3.5 py-1.5 rounded-full shadow flex items-center gap-2';
+                label.textContent = "PLAYER 1'S TURN";
+            } else {
+                p2Card.classList.add('active-player-red');
+                p1Card.classList.remove('active-player-blue');
+                p2Badge.classList.remove('hidden');
+                p1Badge.classList.add('hidden');
+                banner.className = 'bg-red-500 text-white font-black text-xs sm:text-sm px-3.5 py-1.5 rounded-full shadow flex items-center gap-2';
+                label.textContent = "PLAYER 2'S TURN";
+            }
+        }
+
+        function selectPlayer(playerNum) {
+            currentPlayer = playerNum;
+            updatePlayerUI();
+        }
+
+        function adjustScore(playerNum, delta) {
+            scores[playerNum] = Math.max(0, scores[playerNum] + delta);
+            if (delta > 0) playCorrectSound();
+            updatePlayerUI();
+        }
+
+        function awardCurrentPlayerAndNext() {
+            scores[currentPlayer] += 1;
+            updatePlayerUI();
+            nextTurn(true);
+        }
+
+        function nextTurn(autoSpin = true) {
+            if (currentTurn >= maxTurns) {
+                showVictoryModal();
+                return;
+            }
+            currentTurn++;
+            currentPlayer = currentPlayer === 1 ? 2 : 1;
+            updatePlayerUI();
+            if (autoSpin) {
+                spinSubject();
+            } else {
+                resetTimer();
+            }
+        }
+
+        function resetTimer() {
+            clearInterval(timerInterval);
+            timeLeft = TURN_TIME;
+            updateTimerUI();
+
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                updateTimerUI();
+
+                if (timeLeft <= 3 && timeLeft > 0) {
+                    playTone(440, 'sine', 0.08, 0.12);
+                }
+
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    playWrongSound();
+                }
+            }, 1000);
+        }
+
+        function updateTimerUI() {
+            const textEl = document.getElementById('timer-text');
+            const ringEl = document.getElementById('timer-ring');
+            textEl.textContent = timeLeft;
+
+            const circumference = 264;
+            const offset = circumference - (timeLeft / TURN_TIME) * circumference;
+            ringEl.style.strokeDashoffset = offset;
+
+            if (timeLeft > 8) {
+                ringEl.setAttribute('stroke', '#22c55e');
+            } else if (timeLeft > 4) {
+                ringEl.setAttribute('stroke', '#f59e0b');
+            } else {
+                ringEl.setAttribute('stroke', '#ef4444');
+            }
+        }
+
+        // 10. UTILITIES & MODAL
+        function shuffleTimetable() {
+            const keys = Object.keys(SUBJECTS);
+            for (let r = 0; r < 4; r++) {
+                for (let c = 0; c < 5; c++) {
+                    currentGrid[r][c] = keys[Math.floor(Math.random() * keys.length)];
+                }
+            }
+            setTargetSubject(targetSubjectKey);
+            resetTimer();
+        }
+
+        function resetOriginalTimetable() {
+            currentGrid = JSON.parse(JSON.stringify(PHOTO_TIMETABLE_GRID));
+            setTargetSubject('vietnamese');
+            resetTimer();
+        }
+
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            const btn = document.getElementById('btn-sound');
+            btn.innerHTML = soundEnabled ? '<span>🔔</span> SFX: ON' : '<span>🔕</span> SFX: OFF';
+        }
+
+        function showVictoryModal() {
+            clearInterval(timerInterval);
+            const modal = document.getElementById('victory-modal');
+            const title = document.getElementById('winner-title');
+            document.getElementById('final-p1-score').textContent = scores[1];
+            document.getElementById('final-p2-score').textContent = scores[2];
+
+            if (scores[1] > scores[2]) {
+                title.textContent = '🎉 PLAYER 1 WINS!';
+                title.className = 'font-display text-3xl sm:text-4xl font-bold text-blue-600 mb-2';
+            } else if (scores[2] > scores[1]) {
+                title.textContent = '🎉 PLAYER 2 WINS!';
+                title.className = 'font-display text-3xl sm:text-4xl font-bold text-red-600 mb-2';
+            } else {
+                title.textContent = "🤝 IT'S A TIE!";
+                title.className = 'font-display text-3xl sm:text-4xl font-bold text-amber-500 mb-2';
+            }
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+
+            if (typeof confetti === 'function') {
+                confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+            }
+        }
+
+        function closeVictoryAndRestart() {
+            const modal = document.getElementById('victory-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            resetGame();
+        }
+
+        function resetGame() {
+            scores = { 1: 0, 2: 0 };
+            currentTurn = 1;
+            currentPlayer = 1;
+            updatePlayerUI();
+            setTargetSubject('vietnamese');
+            resetTimer();
+        }
+
+        window.onload = () => {
+            scores = { 1: 0, 2: 1 };
+            currentTurn = 6;
+            currentPlayer = 2;
+            updatePlayerUI();
+            setTargetSubject('vietnamese');
+            resetTimer();
+        };
+    </script>
+</body>
+</html>
